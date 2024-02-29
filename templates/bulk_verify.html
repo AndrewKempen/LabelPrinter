@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% from 'bootstrap5/form.html' import render_form, render_field, render_form_row %}
+
+{% block content %}
+    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+
+    <!-- <h2>Badge to Print</h2> -->
+
+    <div>
+      <h2>Badges to Print</h2>
+      <hr>
+      <div id="table"></div>
+    </div>
+    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+    <script>
+      new gridjs.Grid({
+        columns: [
+          { id: 'first_name', name: 'First' },
+          { id: 'last_name', name: 'Last' },
+          { id: 'position', name: 'Position' },
+          { id: 'alumni', name: 'Alumni' },
+        ],
+        data: [
+          {% for row in rows %}
+            {
+              first_name: '{{ row[0] }}',
+              last_name: '{{ row[1] }}',
+              position: '{{ row[2] }}',
+              alumni: '{{ row[3] }}',
+            },
+          {% endfor %}
+        ],
+        search: {
+          selector: (cell, rowIndex, cellIndex) => [0, 1, 4].includes(cellIndex) ? cell : null,
+        },
+        sort: true,
+        pagination: true,
+      }).render(document.getElementById('table'));
+    </script>
+
+    {{ render_form(form) }}
+
+{% endblock %}

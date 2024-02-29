@@ -4,9 +4,13 @@ from flask import Flask, render_template, request, flash, redirect, url_for
 from markupsafe import Markup
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms.validators import DataRequired, Length, Regexp
-from wtforms.fields import *
+from flask_wtf.file import FileField, FileAllowed, FileRequired
+from wtforms.fields import SubmitField, StringField, SelectField, BooleanField
 from flask_bootstrap import Bootstrap5, SwitchField
 from zebra import Zebra
+from werkzeug.utils import secure_filename
+from io import StringIO
+import csv
 
 app = Flask(__name__)
 app.secret_key = "dev"
@@ -14,7 +18,7 @@ app.secret_key = "dev"
 bootstrap = Bootstrap5(app)
 csrf = CSRFProtect(app)
 
-#z = Zebra("ZDesigner ZD620-300dpi ZPL")
+# z = Zebra("ZDesigner ZD620-300dpi ZPL")
 z = Zebra("ZTC-ZD620-300dpi-ZPL")
 
 z.setup(direct_thermal=True, label_height=(300 * 2, 0), label_width=300 * 4)
@@ -31,7 +35,7 @@ def print_badge(
     position: str,
     event: str,
     first_alumni: bool,
-    speed: int = 3,
+    speed: int = 2,
     darkness: int = 30,
 ):
     if first_alumni:
@@ -65,7 +69,7 @@ eJztWc9rI0cWftVSq4WcdbdgGl0s1MzJeMHjhRyGkB1pwWauErjxZYXyH6wW4ptJFxMIJockl9zFnIwO
     )
 
 
-class HelloForm(FlaskForm):
+class SingleLabelForm(FlaskForm):
     first_name = StringField("First Name", validators=[DataRequired()])
     last_name = StringField("Last Name", validators=[DataRequired()])
     position = StringField("Position", validators=[DataRequired()])
@@ -80,9 +84,28 @@ class HelloForm(FlaskForm):
     submit = SubmitField()
 
 
+class BulkLabelForm(FlaskForm):
+    file = FileField(
+        "Bulk Upload",
+        validators=[FileRequired(), FileAllowed(["csv"], ".csv files only")],
+    )
+    submit = SubmitField()
+
+
+class SimpleForm(FlaskForm):
+    event = SelectField(
+        "Event",
+        choices=[
+            ("2024 Ventura County Regional", "2024 Ventura County Regional"),
+            ("2024 Hueneme Port Regional", "2024 Hueneme Port Regional"),
+        ],
+    )
+    submit = SubmitField()
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    form = HelloForm()
+    form = SingleLabelForm()
 
     if form.validate_on_submit():
         first = form.first_name.data
@@ -105,9 +128,41 @@ def index():
     )
 
 
+data = []
+
+
 @app.route("/bulk", methods=["GET", "POST"])
 def bulk():
-    form = HelloForm()
+    global data
+    form = BulkLabelForm()
+    form2 = SimpleForm()
+
+    if form.validate_on_submit():
+        f = form.file.data
+        # filename = secure_filename(f.filename)
+        f = StringIO(f.read().decode("utf-8"))
+
+        csv_reader = csv.reader(f)
+        data = list(csv_reader)[1:]
+
+        return render_template("bulk_verify.html", rows=data, form=form2)
+
+    elif form2.validate_on_submit():
+        for row in data:
+            alumni = row[3].lower() == "yes"
+            print("Printing badge for", row[0], row[1])
+
+            print_badge(
+                first=row[0],
+                last=row[1],
+                position=row[2],
+                event=form2.event.data,
+                first_alumni=alumni,
+            )
+
+        flash(f"Printing {len(data)} labels")
+
+        return redirect(url_for("bulk"))
 
     return render_template(
         "bulk.html",
